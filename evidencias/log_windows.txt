@@ -1,0 +1,31 @@
+==== Entorno ==== 
+3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]
+Windows-11-10.0.26200-SP0
+==== pip install -r requirements.txt ==== 
+Requirement already satisfied: pygame-ce>=2.5.6 in C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages (from -r requirements.txt (line 1)) (2.5.8)
+Requirement already satisfied: pytest>=7 in C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages (from -r requirements.txt (line 2)) (9.2.0)
+Requirement already satisfied: colorama>=0.4 in C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages (from pytest>=7->-r requirements.txt (line 2)) (0.4.6)
+Requirement already satisfied: iniconfig>=2 in C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages (from pytest>=7->-r requirements.txt (line 2)) (2.3.1)
+Requirement already satisfied: packaging>=24 in C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages (from pytest>=7->-r requirements.txt (line 2)) (26.3)
+Requirement already satisfied: pluggy<2,>=1.6 in C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages (from pytest>=7->-r requirements.txt (line 2)) (1.7.0)
+Requirement already satisfied: pygments>=2.15 in C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages (from pytest>=7->-r requirements.txt (line 2)) (2.21.0)
+
+[notice] A new release of pip is available: 26.2.1 -> 26.2.2
+[notice] To update, run: C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\python.exe -m pip install --upgrade pip
+==== pytest ==== 
+==== prueba de humo ==== 
+pygame-ce 2.5.8 (SDL 2.32.10, Python 3.14.7)
+Prueba de humo OK: 931 fotogramas en 0.84s (1102 FPS sin límite). Estados: ['game_over', 'instructions', 'menu', 'paused', 'playing']
+==== capturas ==== 
+pygame-ce 2.5.8 (SDL 2.32.10, Python 3.14.7)
+Generando capturas reales del juego...
+  captura: evidencias\01_menu_principal.png
+  captura: evidencias\02_instrucciones.png
+  captura: evidencias\03_partida_en_ejecucion.png
+  captura: evidencias\04_puntuacion_y_combo.png
+  captura: evidencias\05_mejora_escudo_y_efectos.png
+  captura: evidencias\06_pausa.png
+  captura: evidencias\07_game_over.png
+  captura: evidencias\08_reinicio_nueva_partida.png
+Listo: 1943 fotogramas renderizados.
+FIN 

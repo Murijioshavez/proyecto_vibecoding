@@ -1,0 +1,214 @@
+Binary files v2_src/__pycache__/entities.cpython-313.pyc and v3_src/__pycache__/entities.cpython-313.pyc differ
+Binary files v2_src/__pycache__/game.cpython-313.pyc and v3_src/__pycache__/game.cpython-313.pyc differ
+Binary files v2_src/__pycache__/render.cpython-313.pyc and v3_src/__pycache__/render.cpython-313.pyc differ
+Binary files v2_src/__pycache__/settings.cpython-313.pyc and v3_src/__pycache__/settings.cpython-313.pyc differ
+diff -ruN v2_src/entities.py v3_src/entities.py
+--- v2_src/entities.py	2026-11-01 18:30:44.231952047 -0600
++++ v3_src/entities.py	2026-11-01 18:31:16.825834506 -0600
+@@ -93,3 +93,16 @@
+             pts.append((self.x + math.cos(a) * self.radius * k,
+                         self.y + math.sin(a) * self.radius * k))
+         return pts
++
++
++class PowerUp(Entity):
++    """Escudo: absorbe el siguiente impacto de meteoro."""
++
++    def __init__(self, x, y, kind="shield"):
++        super().__init__(x, y, cfg.SHIELD_RADIUS)
++        self.kind = kind
++        self.phase = 0.0
++
++    def update(self, dt):
++        self.phase += dt * 3
++        self.y += cfg.SHIELD_SPEED * dt
+diff -ruN v2_src/game.py v3_src/game.py
+--- v2_src/game.py	2026-11-01 18:30:44.231556398 -0600
++++ v3_src/game.py	2026-11-01 18:31:16.825880641 -0600
+@@ -10,7 +10,7 @@
+ from dataclasses import dataclass
+ 
+ from src import settings as cfg
+-from src.entities import Meteor, Player, Star
++from src.entities import Meteor, Player, PowerUp, Star
+ 
+ 
+ class State:
+@@ -66,7 +66,15 @@
+         self.elapsed = 0.0
+         self.star_timer = 0.0
+         self.meteor_timer = 0.0
+-        self.events = []  # eventos para efectos visuales: (tipo, x, y)
++        self.events = []  # eventos para efectos visuales: (tipo, x, y, ...)
++        # Iteración 2: invulnerabilidad, combo y escudo
++        self.powerups = []
++        self.powerup_timer = 0.0
++        self.invulnerable = 0.0
++        self.shield = False
++        self.combo = 1
++        self.combo_timer = 0.0
++        self.new_record = False
+ 
+     def start(self):
+         self.reset()
+@@ -137,28 +145,75 @@
+             self.meteor_timer = 0.0
+             self.spawn_meteor()
+ 
++        self.powerup_timer += dt
++        if self.powerup_timer >= cfg.SHIELD_SPAWN_INTERVAL:
++            self.powerup_timer = 0.0
++            self.powerups.append(PowerUp(self.rng.uniform(40, self.width - 40), -20))
++
++        # El combo se pierde si pasa demasiado tiempo sin recoger estrellas.
++        if self.combo_timer > 0:
++            self.combo_timer -= dt
++            if self.combo_timer <= 0:
++                self.combo = 1
++        self.invulnerable = max(0.0, self.invulnerable - dt)
++
++        old_level = self.level
+         for star in self.stars:
+             star.update(dt)
+             if star.alive and star.collides_with(self.player):
+-                star.alive = False
+-                self.score += cfg.STAR_POINTS
+-                self.events.append(("collect", star.x, star.y))
++                self.collect_star(star)
++
++        for p in self.powerups:
++            p.update(dt)
++            if p.alive and p.collides_with(self.player):
++                p.alive = False
++                self.shield = True
++                self.events.append(("collect", p.x, p.y, "¡ESCUDO!"))
+ 
+         for meteor in self.meteors:
+             meteor.update(dt)
+             if meteor.alive and meteor.collides_with(self.player):
+-                self.lives -= 1
+-                self.events.append(("hit", self.player.x, self.player.y))
++                self.hit_by(meteor)
++
++        if self.level > old_level:
++            self.events.append(("level_up", self.width / 2, self.height / 2))
+ 
+         self.stars = [s for s in self.stars if s.alive]
++        self.meteors = [m for m in self.meteors if m.alive]
++        self.powerups = [p for p in self.powerups if p.alive]
+ 
+         if self.score >= cfg.VICTORY_SCORE:
+             self.finish(State.VICTORY)
+         elif self.lives <= 0:
+             self.finish(State.GAME_OVER)
+ 
++    def collect_star(self, star):
++        """Suma puntos con el multiplicador de combo actual."""
++        star.alive = False
++        gained = cfg.STAR_POINTS * self.combo
++        self.score += gained
++        label = f"+{gained}" if self.combo == 1 else f"+{gained} x{self.combo}"
++        self.events.append(("collect", star.x, star.y, label))
++        self.combo = min(cfg.COMBO_MAX, self.combo + 1)
++        self.combo_timer = cfg.COMBO_WINDOW
++
++    def hit_by(self, meteor):
++        """Gestiona un choque. Durante la invulnerabilidad no pasa nada."""
++        if self.invulnerable > 0:
++            return
++        meteor.alive = False
++        self.events.append(("hit", self.player.x, self.player.y))
++        self.combo = 1
++        self.combo_timer = 0.0
++        if self.shield:
++            self.shield = False          # el escudo absorbe el golpe
++        else:
++            self.lives -= 1
++        self.invulnerable = cfg.INVULNERABLE_TIME
++
+     def finish(self, final_state):
+         self.state = final_state
+         if self.score > self.highscore:
+             self.highscore = self.score
++            self.new_record = True
+             self.save_highscore()
+diff -ruN v2_src/render.py v3_src/render.py
+--- v2_src/render.py	2026-11-01 18:30:44.231632779 -0600
++++ v3_src/render.py	2026-11-01 18:31:16.825904200 -0600
+@@ -122,6 +122,13 @@
+         pygame.draw.circle(target, cfg.METEOR_EDGE, (int(cx), int(cy)),
+                            max(2, int(meteor.radius * 0.22)))
+ 
++    def draw_powerup(self, target, p):
++        self.blit_glow(target, p.x, p.y, p.radius * 2.6, cfg.GREEN)
++        r = int(p.radius * (1 + 0.12 * math.sin(p.phase * 2)))
++        pygame.draw.circle(target, (30, 90, 60), (int(p.x), int(p.y)), r)
++        pygame.draw.circle(target, cfg.GREEN, (int(p.x), int(p.y)), r, 3)
++        self.text(target, "S", self.font_tiny, cfg.WHITE, (p.x, p.y + 1), shadow=False)
++
+     def draw_effects(self, target):
+         for p in self.effects.particles:
+             size = max(1, int(p.size * p.ratio))
+@@ -153,6 +160,11 @@
+         pygame.draw.rect(target, cfg.CYAN, (bx, by, int(bw * progress), 14), border_radius=7)
+         self.text(target, f"NIVEL {game.level}", self.font_tiny, cfg.CYAN,
+                   (bx + bw // 2, by + 30), shadow=False)
++        if game.combo > 1:
++            self.text(target, f"COMBO x{game.combo}", self.font_small, cfg.ORANGE,
++                      (bx + bw + 90, 32), shadow=False)
++        if game.shield:
++            self.text(target, "ESCUDO", self.font_tiny, cfg.GREEN, (180, 32), shadow=False)
+         for i in range(cfg.PLAYER_LIVES):
+             color = cfg.RED if i < game.lives else (70, 60, 80)
+             self.draw_heart(target, cfg.WIDTH - 40 - i * 36, 26, color)
+@@ -170,7 +182,14 @@
+             self.draw_star(target, star)
+         for meteor in game.meteors:
+             self.draw_meteor(target, meteor)
+-        self.draw_player(target, game.player)
++        for p in game.powerups:
++            self.draw_powerup(target, p)
++        # Parpadeo durante la invulnerabilidad
++        if game.invulnerable <= 0 or int(self.time * 12) % 2 == 0:
++            self.draw_player(target, game.player)
++        if game.shield:
++            r = int(game.player.radius * 1.9 + 2 * math.sin(self.time * 6))
++            pygame.draw.circle(target, cfg.GREEN, (int(game.player.x), int(game.player.y)), r, 3)
+         self.draw_effects(target)
+         self.draw_hud(target, game)
+ 
+@@ -196,7 +215,8 @@
+         self.text(target, "Instrucciones", self.font_big, cfg.YELLOW, (cx, 90))
+         lines = [
+             ("Flechas / WASD", "mover la nave"),
+-            ("Estrella amarilla", "+10 puntos"),
++            ("Estrella amarilla", "+10 puntos (combo hasta x5)"),
++            ("Esfera verde S", "escudo: absorbe un choque"),
+             ("Meteoro", "pierdes una vida"),
+             ("Cada 100 puntos", "sube el nivel: más meteoros y más rápidos"),
+             ("Meta", f"llegar a {cfg.VICTORY_SCORE} puntos"),
+@@ -219,8 +239,7 @@
+             self.text(target, "GAME OVER", self.font_big, cfg.RED, (cx, 190))
+         self.text(target, f"Puntuación: {game.score}", self.font_mid, cfg.WHITE, (cx, 290))
+         self.text(target, f"Nivel alcanzado: {game.level}", self.font_small, cfg.CYAN, (cx, 340))
+-        record = "¡NUEVO RÉCORD!" if game.score >= game.highscore and game.score > 0 \
+-            else f"Récord: {game.highscore}"
++        record = "¡NUEVO RÉCORD!" if game.new_record else f"Récord: {game.highscore}"
+         self.text(target, record, self.font_mid, cfg.YELLOW, (cx, 395))
+         self.text(target, "R - Reiniciar      M - Menú", self.font_small, cfg.GREY, (cx, 480))
+ 
+diff -ruN v2_src/settings.py v3_src/settings.py
+--- v2_src/settings.py	2026-11-01 18:30:44.231932371 -0600
++++ v3_src/settings.py	2026-11-01 18:31:16.825814968 -0600
+@@ -49,3 +49,11 @@
+ 
+ # --- Archivos --------------------------------------------------------------
+ HIGHSCORE_FILE = "highscore.json"
++
++# --- Iteración 2: jugabilidad ----------------------------------------------
++INVULNERABLE_TIME = 1.5    # segundos de invulnerabilidad tras un choque
++COMBO_WINDOW = 1.6         # segundos para encadenar estrellas
++COMBO_MAX = 5              # multiplicador máximo
++SHIELD_SPAWN_INTERVAL = 14.0
++SHIELD_RADIUS = 13
++SHIELD_SPEED = 95.0

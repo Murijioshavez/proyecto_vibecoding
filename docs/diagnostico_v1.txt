@@ -1,0 +1,4 @@
+1) vidas tras 0.5 s de contacto con UN meteoro: 0 estado: game_over
+2) meteoros en memoria tras 120 s: 109 visibles: 5
+3) récord corrupto -> excepción: JSONDecodeError
+4) dt=3s: desplazamiento de la nave en un solo frame: 462 px

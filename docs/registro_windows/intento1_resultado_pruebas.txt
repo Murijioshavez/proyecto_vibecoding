@@ -1,0 +1,2 @@
+C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\python.exe: No module named pytest
+codigo de salida pytest: 1 

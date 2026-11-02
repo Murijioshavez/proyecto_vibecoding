@@ -1,0 +1,37 @@
+--- v4_src/render.py	2026-11-01 18:32:08.656361685 -0600
++++ proyecto_vibecoding/src/render.py	2026-11-01 18:36:17.608860198 -0600
+@@ -36,20 +36,28 @@
+         return surf
+ 
+     def glow(self, radius, color):
+-        """Superficie circular semitransparente (halo), cacheada."""
++        """Halo circular para mezcla aditiva, cacheado por (radio, color).
++
++        Corrección tras la revisión visual en Windows: antes se usaba una
++        superficie SRCALPHA con BLEND_RGBA_ADD, pero ese modo suma el RGB
++        ignorando el alfa y el halo salía como un disco sólido. Ahora la
++        intensidad se "premultiplica" en el propio color (negro = no suma
++        nada) y se mezcla con BLEND_RGB_ADD.
++        """
+         key = (int(radius), color)
+         if key not in self._glow_cache:
+-            r = int(radius)
+-            surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
++            r = max(1, int(radius))
++            surf = pygame.Surface((r * 2, r * 2))
++            surf.fill((0, 0, 0))
+             for i in range(r, 0, -2):
+-                alpha = int(70 * (1 - i / r) ** 1.5)
+-                pygame.draw.circle(surf, (*color, alpha), (r, r), i)
++                k = 0.30 * (1 - i / r) ** 2          # 0 en el borde, 0.30 en el centro
++                pygame.draw.circle(surf, tuple(int(c * k) for c in color), (r, r), i)
+             self._glow_cache[key] = surf
+         return self._glow_cache[key]
+ 
+     def blit_glow(self, target, x, y, radius, color):
+         g = self.glow(radius, color)
+-        target.blit(g, (x - radius, y - radius), special_flags=pygame.BLEND_RGBA_ADD)
++        target.blit(g, (x - int(radius), y - int(radius)), special_flags=pygame.BLEND_RGB_ADD)
+ 
+     def text(self, target, msg, font, color, center, shadow=True):
+         if shadow:
